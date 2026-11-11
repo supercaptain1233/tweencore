@@ -1,19 +1,18 @@
 --[[
-    TWEEN CORE — v6
+    TWEEN CORE — v8 (Steal a Brainrot hardened)
     Mobile / Delta / universal
-    Loadstring: loadstring(game:HttpGet("https://raw.githubusercontent.com/supercaptain1233/tweencore/main/tweencore.lua"))()
+    Loadstring: loadstring(game:HttpGet("https://raw.githubusercontent.com/supercaptain1233/tweencore/main/tweencore2.lua"))()
 ]]
 
 --============ PROTECTION ============
 local cloneref = cloneref or function(o) return o end
 local typeof = typeof or type
-local rawget, rawset = rawget, rawset
 
-if typeof(setthreadidentity) == "function" then pcall(setthreadidentity, 8) end
-if typeof(setidentity) == "function" then pcall(setidentity, 8) end
+if typeof(setthreadidentity) == "function" then pcall(setthreadidentity, 7) end
+if typeof(setidentity) == "function" then pcall(setidentity, 7) end
 if typeof(setfpscap) == "function" then pcall(setfpscap, 60) end
 
-local RAW_URL = "https://raw.githubusercontent.com/supercaptain1233/tweencore/main/tweencore.lua"
+local RAW_URL = "https://raw.githubusercontent.com/supercaptain1233/tweencore/main/tweencore2.lua"
 local PATCH_URL = "https://raw.githubusercontent.com/supercaptain1233/tweencore/main/patches/%s.lua"
 local FOLDER = "TweenCore"
 local STORE = FOLDER .. "/saves.json"
@@ -29,25 +28,39 @@ if getgenv then getgenv().TweenCoreBoot = bootCount end
 
 local function boot()
 
-local Players = cloneref(game:GetService("Players"))
-local RunService = cloneref(game:GetService("RunService"))
-local UIS = cloneref(game:GetService("UserInputService"))
-local VU = cloneref(game:GetService("VirtualUser"))
-local TweenService = cloneref(game:GetService("TweenService"))
-local Http = cloneref(game:GetService("HttpService"))
-local TPS = cloneref(game:GetService("TeleportService"))
-local SG = cloneref(game:GetService("StarterGui"))
-local PFS = cloneref(game:GetService("PathfindingService"))
-local CG = cloneref(game:GetService("CoreGui"))
+local function svc(name)
+    local ok, s = pcall(function() return game:GetService(name) end)
+    if ok and s then
+        local ok2, c = pcall(cloneref, s)
+        if ok2 and c then return c end
+        return s
+    end
+    return nil
+end
+
+local Players = svc("Players")
+local RunService = svc("RunService")
+local UIS = svc("UserInputService")
+local VU = svc("VirtualUser")
+local TweenService = svc("TweenService")
+local Http = svc("HttpService")
+local TPS = svc("TeleportService")
+local SG = svc("StarterGui")
+local PFS = svc("PathfindingService")
+
+if not (Players and RunService and UIS and TweenService) then return end
 
 local LP = Players.LocalPlayer
 if not LP then return end
 
-local SPEED = 460
+local SPEED = 380
 local MIN_T = 0.10
-local MAX_T = 0.42
-local CHUNK = 22
+local MAX_T = 0.45
+local CHUNK = 14
 local STAND = 3.2
+local LOCK = 1.2
+local DRIFT = 1.5
+local DRIFT_TOL = 5
 
 --============ FILE ============
 local function safeRead(p)
@@ -165,19 +178,23 @@ local function armGuard(part)
     if not part:IsA("BasePart") then return end
     noclipConns[#noclipConns + 1] =
         part:GetPropertyChangedSignal("CanCollide"):Connect(function()
-            if noclipOn and part.CanCollide then
-                pcall(function() part.CanCollide = false end)
-            elseif not noclipOn and not part.CanCollide then
-                pcall(function() part.CanCollide = true end)
-            end
+            pcall(function()
+                if noclipOn and part.CanCollide then
+                    part.CanCollide = false
+                elseif not noclipOn and not part.CanCollide then
+                    part.CanCollide = true
+                end
+            end)
         end)
     noclipConns[#noclipConns + 1] =
         part:GetPropertyChangedSignal("CanQuery"):Connect(function()
-            if noclipOn and part.CanQuery then
-                pcall(function() part.CanQuery = false end)
-            elseif not noclipOn and not part.CanQuery then
-                pcall(function() part.CanQuery = true end)
-            end
+            pcall(function()
+                if noclipOn and part.CanQuery then
+                    part.CanQuery = false
+                elseif not noclipOn and not part.CanQuery then
+                    part.CanQuery = true
+                end
+            end)
         end)
 end
 
@@ -272,10 +289,6 @@ track(RunService.RenderStepped:Connect(function()
     if noclipOn then noclipSweep() end
 end))
 
-track(RunService.Stepped:Connect(function()
-    if noclipOn then noclipSweep() end
-end))
-
 --============ STATE ============
 local busy = false
 local token = 0
@@ -310,7 +323,7 @@ if typeof(gethui) == "function" then
     if ok and h then gui.Parent = h parented = true end
 end
 if not parented then
-    local ok = pcall(function() gui.Parent = CG end)
+    local ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
     if not ok then gui.Parent = LP:WaitForChild("PlayerGui") end
 end
 
@@ -660,12 +673,17 @@ local function floorUnder(pos)
 end
 
 local function groundFix(cf)
-    local y = floorUnder(cf.Position)
-    if not y then return cf end
-    return CFrame.new(Vector3.new(cf.X, y + STAND, cf.Z)) * (cf - cf.Position)
+    local ok, res = pcall(function()
+        local y = floorUnder(cf.Position)
+        if not y then return cf end
+        return CFrame.new(Vector3.new(cf.X, y + STAND, cf.Z)) * (cf - cf.Position)
+    end)
+    if ok and res then return res end
+    return cf
 end
 
 local function pathOnce(from, to, radius, budget)
+    if not PFS then return nil end
     local ok, out = pcall(function()
         local path = PFS:CreatePath({
             AgentRadius = radius,
@@ -886,7 +904,6 @@ local function tweenLeg(dest, myToken)
     return token == myToken and alive()
 end
 
--- split into short hops so it reads as fast walking, not a teleport
 local function stepTo(point, look, myToken)
     local hrp = hrpOf()
     if not hrp then return false end
@@ -903,17 +920,19 @@ local function stepTo(point, look, myToken)
     return true
 end
 
-local function settle(cf, myToken, secs)
+-- anchored lock at render rate: beats any single server correction
+local function lockAt(cf, myToken, secs)
     local t0 = os.clock()
     while os.clock() - t0 < secs do
         if token ~= myToken or not alive() then break end
         local hrp = hrpOf()
         if not hrp then break end
+        local fixed = groundFix(cf)
         pcall(function()
             hrp.Anchored = true
-            hrp.CFrame = cf
+            hrp.CFrame = fixed
         end)
-        RunService.Heartbeat:Wait()
+        RunService.RenderStepped:Wait()
     end
     local me = hrpOf()
     if me then
@@ -921,6 +940,24 @@ local function settle(cf, myToken, secs)
             me.Anchored = false
             me.AssemblyLinearVelocity = Vector3.zero
         end)
+    end
+end
+
+-- after release, chase any drift for a while so corrections lose
+local function driftWatch(cf, myToken, secs)
+    local t0 = os.clock()
+    while os.clock() - t0 < secs do
+        if token ~= myToken or not alive() then break end
+        local hrp = hrpOf()
+        if not hrp then break end
+        if (hrp.Position - cf.Position).Magnitude > DRIFT_TOL then
+            local fixed = groundFix(cf)
+            pcall(function()
+                hrp.CFrame = fixed
+                hrp.AssemblyLinearVelocity = Vector3.zero
+            end)
+        end
+        RunService.Heartbeat:Wait()
     end
 end
 
@@ -936,8 +973,6 @@ local function travel(target)
     playBtn.BackgroundColor3 = Color3.fromRGB(70, 110, 60)
 
     local route, style = buildRoute(hrp.Position, target.Position, 0)
-
-    -- only strip collision when the route genuinely needs it
     local needNoclip = (style == "noclip")
     if needNoclip then setNoclip(true) end
 
@@ -956,7 +991,8 @@ local function travel(target)
     local me = hrpOf()
     if me and token == myToken then
         if needNoclip then setNoclip(false) end
-        settle(final, myToken, 0.6)
+        lockAt(final, myToken, LOCK)
+        driftWatch(final, myToken, DRIFT)
     elseif needNoclip then
         setNoclip(false)
     end
@@ -970,7 +1006,7 @@ local function travel(target)
 
     if token == myToken then
         learnUp(style)
-        celebrate()
+        pcall(celebrate)
     end
 end
 
@@ -1046,7 +1082,7 @@ playBtn.Activated:Connect(function()
         task.delay(1, function() if not busy then playBtn.Text = "PLAY" end end)
         return
     end
-    travel(unpackCF(data.saves[i]))
+    pcall(function() travel(unpackCF(data.saves[i])) end)
 end)
 
 --============ API / WATCHDOG ============
@@ -1059,7 +1095,7 @@ local function destroy()
     if getgenv then getgenv().TweenCore = nil end
 end
 
-local api = { destroy = destroy, version = "6.0", data = data, celebrate = celebrate }
+local api = { destroy = destroy, version = "8.0", data = data, celebrate = celebrate }
 if getgenv then getgenv().TweenCore = api end
 
 task.spawn(function()
@@ -1083,7 +1119,7 @@ task.spawn(function()
                     local ok, h = pcall(gethui)
                     if ok and h then gui.Parent = h end
                 else
-                    gui.Parent = CG
+                    gui.Parent = game:GetService("CoreGui")
                 end
                 if lost >= 6 then
                     gui:Destroy()
@@ -1113,6 +1149,13 @@ local ok, err = xpcall(boot, function(e) return e end)
 
 if not ok then
     warn("[TweenCore] " .. tostring(err))
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "TweenCore failed",
+            Text = tostring(err):sub(1, 180),
+            Duration = 12,
+        })
+    end)
     if bootCount < 2 and typeof(loadstring) == "function" then
         task.wait(1)
         pcall(function()
